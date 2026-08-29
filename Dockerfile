@@ -1,0 +1,6 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY . .
+ENV PYTHONPATH=/app
+EXPOSE 8000
+CMD ["python","-c","from bidcheck.app import run; run(host='0.0.0.0',port=8000)"]
