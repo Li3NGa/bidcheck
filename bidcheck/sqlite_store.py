@@ -1,23 +1,18 @@
 from __future__ import annotations
-import sqlite3
+import json,sqlite3
 from pathlib import Path
 from .project import TenderProject
+from .project_serialization import project_to_dict,project_from_dict
 
 class SQLiteProjectRepository:
-    def __init__(self, path: str|Path='bidcheck.db'):
+    def __init__(self,path:str|Path='bidcheck.db'):
         self.path=str(path)
         with sqlite3.connect(self.path) as db:
-            db.execute('CREATE TABLE IF NOT EXISTS projects (project_id TEXT PRIMARY KEY, name TEXT NOT NULL, response_documents TEXT NOT NULL, created_at TEXT NOT NULL)')
-            db.commit()
-    def save(self, project: TenderProject)->None:
-        import json
+            db.execute('CREATE TABLE IF NOT EXISTS projects (project_id TEXT PRIMARY KEY, payload TEXT NOT NULL)'); db.commit()
+    def save(self,project:TenderProject)->None:
+        payload=json.dumps(project_to_dict(project),ensure_ascii=False)
         with sqlite3.connect(self.path) as db:
-            db.execute('INSERT OR REPLACE INTO projects(project_id,name,response_documents,created_at) VALUES(?,?,?,?)',(project.project_id,project.name,json.dumps(project.response_documents,ensure_ascii=False),project.created_at.isoformat()))
-            db.commit()
-    def get(self, project_id:str)->TenderProject|None:
-        import json
-        from datetime import datetime
-        with sqlite3.connect(self.path) as db:
-            row=db.execute('SELECT project_id,name,response_documents,created_at FROM projects WHERE project_id=?',(project_id,)).fetchone()
-        if row is None:return None
-        return TenderProject(row[0],row[1],None,json.loads(row[2]),datetime.fromisoformat(row[3]))
+            db.execute('INSERT OR REPLACE INTO projects(project_id,payload) VALUES(?,?)',(project.project_id,payload)); db.commit()
+    def get(self,project_id:str)->TenderProject|None:
+        with sqlite3.connect(self.path) as db: row=db.execute('SELECT payload FROM projects WHERE project_id=?',(project_id,)).fetchone()
+        return project_from_dict(json.loads(row[0])) if row else None
