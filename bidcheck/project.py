@@ -3,6 +3,7 @@ from dataclasses import dataclass,field
 from datetime import datetime,timezone
 from .requirements import RequirementGraph
 from .audit_pipeline import audit_tender,audit_summary
+from .tenant import User,assert_tenant_access
 
 @dataclass
 class TenderProject:
@@ -10,9 +11,11 @@ class TenderProject:
     name: str
     requirement_graph: RequirementGraph
     response_documents: list[str]=field(default_factory=list)
+    tenant_id: str|None=None
     created_at: datetime=field(default_factory=lambda: datetime.now(timezone.utc))
 
-def audit_project(project: TenderProject)->dict:
+def audit_project(project: TenderProject,user:User|None=None)->dict:
+    if project.tenant_id and user is not None: assert_tenant_access(user,project.tenant_id)
     records=[]
     for document in project.response_documents:
         records.extend(audit_tender(project.requirement_graph,document))
