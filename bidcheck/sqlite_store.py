@@ -16,3 +16,6 @@ class SQLiteProjectRepository:
     def get(self,project_id:str)->TenderProject|None:
         with sqlite3.connect(self.path) as db: row=db.execute('SELECT payload FROM projects WHERE project_id=?',(project_id,)).fetchone()
         return project_from_dict(json.loads(row[0])) if row else None
+    def list(self)->list[TenderProject]:
+        with sqlite3.connect(self.path) as db: rows=db.execute('SELECT payload FROM projects ORDER BY project_id').fetchall()
+        return [project_from_dict(json.loads(row[0])) for row in rows]
