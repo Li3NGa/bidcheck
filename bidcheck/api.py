@@ -16,6 +16,8 @@ class BidCheckService:
         project=self.repository.get(project_id)
         if project is None: raise KeyError(project_id)
         return project
+    def list_projects(self) -> list[dict]:
+        return [{"project_id":p.project_id,"name":p.name,"tenant_id":p.tenant_id,"response_documents":len(p.response_documents)} for p in self.repository.list()]
     def audit(self, project_id: str) -> dict:
         self.usage.consume_audit()
         project=self.get_project(project_id)
