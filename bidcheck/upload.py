@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-ALLOWED_SUFFIXES={'.pdf','.docx','.txt'}
+ALLOWED_SUFFIXES={'.pdf','.docx','.txt','.xlsx'}
 DEFAULT_MAX_BYTES=10*1024*1024
 
 class UploadError(ValueError): pass
