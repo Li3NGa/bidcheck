@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler,HTTPServer
 from .api import BidCheckService
 from .http_api import APIError,create_project,get_project,audit_project,list_projects
 from .upload_api import create_project_from_upload,attach_response_from_upload
+from .plan_api import current_plan
 from .sqlite_store import SQLiteProjectRepository
 from .config import load_settings
 
@@ -23,6 +24,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             if self.path=='/health': return self._send(200,{"status":"ok","service":"bidcheck"})
+            if self.path=='/api/v1/plan': return self._send(200,current_plan(service))
             if self.path=='/api/v1/projects': return self._send(200,list_projects(service))
             if self.path.startswith('/api/v1/projects/'):
                 return self._send(200,get_project(service,self.path.rsplit('/',1)[-1]))
