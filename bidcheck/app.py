@@ -9,6 +9,7 @@ from .plan_api import current_plan
 from .commerce import CommerceService,SQLiteOrderRepository
 from .commerce_api import pricing,create_order,checkout,confirm,entitlement
 from .payment import DisabledPaymentProvider
+from .rate_limit import FixedWindowLimiter
 from .sqlite_store import SQLiteProjectRepository
 from .config import load_settings
 
@@ -16,10 +17,15 @@ settings=load_settings()
 service=BidCheckService(SQLiteProjectRepository(settings.db_path))
 commerce=CommerceService(SQLiteOrderRepository(settings.db_path),DisabledPaymentProvider())
 WEB_INDEX=Path(__file__).resolve().parent.parent/'web'/'index.html'
+limiter=FixedWindowLimiter(limit=120,window_seconds=60)
 
 class Handler(BaseHTTPRequestHandler):
+    def _guard(self):
+        if not limiter.allow(self.client_address[0]): raise APIError(429,'rate_limited','too many requests')
     def _send(self,status,payload):
-        body=json.dumps(payload,ensure_ascii=False,default=str).encode(); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(body)
+        body=json.dumps(payload,ensure_ascii=False,default=str).encode(); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store');
+        if status==429:self.send_header('Retry-After','60')
+        self.end_headers(); self.wfile.write(body)
     def _body(self):
         try:
             size=int(self.headers.get('Content-Length','0') or 0)
@@ -31,6 +37,7 @@ class Handler(BaseHTTPRequestHandler):
         body=WEB_INDEX.read_bytes(); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_GET(self):
         try:
+            self._guard()
             if self.path=='/': return self._web()
             if self.path=='/health': return self._send(200,{"status":"ok","service":"bidcheck"})
             if self.path=='/api/v1/plan': return self._send(200,current_plan(service))
@@ -43,6 +50,7 @@ class Handler(BaseHTTPRequestHandler):
         except (KeyError,ValueError) as e:return self._send(400,{"error":"invalid_request","message":str(e)})
     def do_POST(self):
         try:
+            self._guard()
             if self.path=='/api/v1/orders': return self._send(201,create_order(commerce,self._body()))
             if self.path.startswith('/api/v1/orders/') and self.path.endswith('/checkout'):
                 body=self._body(); return self._send(200,checkout(commerce,self.path.split('/')[4],str(body.get('notify_url',''))))
