@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler,HTTPServer
+from pathlib import Path
 from .api import BidCheckService
 from .http_api import APIError,create_project,get_project,audit_project,list_projects
 from .upload_api import create_project_from_upload,attach_response_from_upload
@@ -14,6 +15,7 @@ from .config import load_settings
 settings=load_settings()
 service=BidCheckService(SQLiteProjectRepository(settings.db_path))
 commerce=CommerceService(SQLiteOrderRepository(settings.db_path),DisabledPaymentProvider())
+WEB_INDEX=Path(__file__).resolve().parent.parent/'web'/'index.html'
 
 class Handler(BaseHTTPRequestHandler):
     def _send(self,status,payload):
@@ -25,16 +27,17 @@ class Handler(BaseHTTPRequestHandler):
             return json.loads(self.rfile.read(size))
         except APIError: raise
         except (ValueError,json.JSONDecodeError) as exc: raise APIError(400,'invalid_json','request body must be valid JSON') from exc
+    def _web(self):
+        body=WEB_INDEX.read_bytes(); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_GET(self):
         try:
+            if self.path=='/': return self._web()
             if self.path=='/health': return self._send(200,{"status":"ok","service":"bidcheck"})
             if self.path=='/api/v1/plan': return self._send(200,current_plan(service))
             if self.path=='/api/v1/pricing': return self._send(200,pricing())
-            if self.path.startswith('/api/v1/users/') and self.path.endswith('/entitlement'):
-                return self._send(200,entitlement(commerce,self.path.split('/')[4]))
+            if self.path.startswith('/api/v1/users/') and self.path.endswith('/entitlement'): return self._send(200,entitlement(commerce,self.path.split('/')[4]))
             if self.path=='/api/v1/projects': return self._send(200,list_projects(service))
-            if self.path.startswith('/api/v1/projects/'):
-                return self._send(200,get_project(service,self.path.rsplit('/',1)[-1]))
+            if self.path.startswith('/api/v1/projects/'): return self._send(200,get_project(service,self.path.rsplit('/',1)[-1]))
             return self._send(404,{"error":"not_found"})
         except APIError as e:return self._send(e.status,{"error":e.code,"message":e.message})
         except (KeyError,ValueError) as e:return self._send(400,{"error":"invalid_request","message":str(e)})
@@ -46,11 +49,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path.startswith('/api/v1/orders/') and self.path.endswith('/confirm'):
                 body=self._body(); return self._send(200,confirm(commerce,self.path.split('/')[4],str(body.get('payload','')).encode(),str(body.get('signature',''))))
             if self.path=='/api/v1/projects/upload': return self._send(201,create_project_from_upload(service,self._body()))
-            if self.path.startswith('/api/v1/projects/') and self.path.endswith('/responses/upload'):
-                return self._send(200,attach_response_from_upload(service,self.path.split('/')[4],self._body()))
+            if self.path.startswith('/api/v1/projects/') and self.path.endswith('/responses/upload'): return self._send(200,attach_response_from_upload(service,self.path.split('/')[4],self._body()))
             if self.path=='/api/v1/projects': return self._send(201,create_project(service,self._body()))
-            if self.path.startswith('/api/v1/projects/') and self.path.endswith('/audit'):
-                return self._send(200,audit_project(service,self.path.split('/')[4]))
+            if self.path.startswith('/api/v1/projects/') and self.path.endswith('/audit'): return self._send(200,audit_project(service,self.path.split('/')[4]))
             return self._send(404,{"error":"not_found"})
         except APIError as e:return self._send(e.status,{"error":e.code,"message":e.message})
         except RuntimeError as e:return self._send(503,{"error":"service_unavailable","message":str(e)})
