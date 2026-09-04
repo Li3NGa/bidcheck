@@ -1,0 +1,17 @@
+services:
+  bidcheck:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      BIDCHECK_HOST: 0.0.0.0
+      BIDCHECK_PORT: 8000
+      BIDCHECK_DB: /data/bidcheck.db
+    volumes:
+      - bidcheck_data:/data
+      - bidcheck_uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  bidcheck_data:
+  bidcheck_uploads:
