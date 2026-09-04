@@ -3,6 +3,7 @@ import json
 from http.server import BaseHTTPRequestHandler,HTTPServer
 from .api import BidCheckService
 from .http_api import APIError,create_project,get_project,audit_project,list_projects
+from .upload_api import create_project_from_upload,attach_response_from_upload
 from .sqlite_store import SQLiteProjectRepository
 from .config import load_settings
 
@@ -29,6 +30,9 @@ class Handler(BaseHTTPRequestHandler):
         except APIError as e:return self._send(e.status,{"error":e.code,"message":e.message})
     def do_POST(self):
         try:
+            if self.path=='/api/v1/projects/upload': return self._send(201,create_project_from_upload(service,self._body()))
+            if self.path.startswith('/api/v1/projects/') and self.path.endswith('/responses/upload'):
+                return self._send(200,attach_response_from_upload(service,self.path.split('/')[4],self._body()))
             if self.path=='/api/v1/projects': return self._send(201,create_project(service,self._body()))
             if self.path.startswith('/api/v1/projects/') and self.path.endswith('/audit'):
                 return self._send(200,audit_project(service,self.path.split('/')[4]))
